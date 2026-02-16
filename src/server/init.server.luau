@@ -38,6 +38,8 @@ local ReviveTreeEvent   = makeRemote("RemoteEvent",    "ReviveTree")
 local CollectAllEvent   = makeRemote("RemoteEvent",    "CollectAll")
 local GetDataFunc       = makeRemote("RemoteFunction", "GetPlayerData")
 local GetMarketFunc     = makeRemote("RemoteFunction", "GetMarketPrices")
+local EquipCosmeticFunc = makeRemote("RemoteFunction", "EquipCosmetic")
+local GetWardrobeFunc   = makeRemote("RemoteFunction", "GetWardrobe")
 
 -- Server -> Client
 local UpdateDataEvent   = makeRemote("RemoteEvent", "UpdateData")
@@ -68,6 +70,11 @@ export type PlayerData = {
 	maxSlots: number,
 	resources: { [string]: number },
 	trees: { TreeInstance },
+	lastLogout: number,
+	wardrobe: {
+		equipped: { [string]: string },
+		owned: { [string]: { string } },
+	},
 }
 
 local DataStore: { [number]: PlayerData } = {}
@@ -77,6 +84,11 @@ local DataStore: { [number]: PlayerData } = {}
 ----------------------------------------------------------------------
 local TreeModels: { [number]: { [number]: Model } } = {}
 local PlayerPlots: { [number]: Folder } = {}
+
+----------------------------------------------------------------------
+-- Offline progression constants
+----------------------------------------------------------------------
+local OFFLINE_EARNINGS_CAP = 12 * 3600  -- Max 12 hours of offline earnings
 
 ----------------------------------------------------------------------
 -- Market state
@@ -373,6 +385,29 @@ local function checkTierUp(player: Player)
 	if info and data.totalCoinsEarned >= info.coinsRequired then
 		data.tier = nextTier
 		data.maxSlots = info.slotsGranted
+		
+		-- Unlock cosmetics for this tier
+		for cosmeticId, cosmetic in TreeConfig.Cosmetics do
+			if cosmetic.unlockTier == nextTier then
+				local owned = data.wardrobe.owned[cosmetic.category]
+				if owned then
+					local alreadyHas = false
+					for _, id in owned do
+						if id == cosmeticId then
+							alreadyHas = true
+							break
+						end
+					end
+					if not alreadyHas then
+						table.insert(owned, cosmeticId)
+					end
+				end
+				NotificationEvent:FireClient(player, string.format(
+					TreeConfig.FeedbackMessages.cosmeticUnlocked, cosmetic.name
+				), "success")
+			end
+		end
+		
 		TierUnlockEvent:FireClient(player, nextTier, info.name, info.unlocksText)
 		NotificationEvent:FireClient(player, string.format(
 			TreeConfig.FeedbackMessages.tierUnlocked, nextTier, info.unlocksText
@@ -430,6 +465,48 @@ end
 ----------------------------------------------------------------------
 -- Player init / cleanup
 ----------------------------------------------------------------------
+----------------------------------------------------------------------
+-- Initialize wardrobe for a player (handles both new and existing players)
+----------------------------------------------------------------------
+local function initializeWardrobe(data: PlayerData)
+	if not data.wardrobe then
+		data.wardrobe = {
+			equipped = {
+				hat = "BasicCap",
+				shirt = "PlainShirt",
+				pants = "BasicPants",
+				accessory = "SimpleBackpack",
+				skin = "DefaultHuman",
+			},
+			owned = {},
+		}
+	end
+
+	-- Ensure owned structure exists for all categories
+	for _, category in TreeConfig.CosmeticCategories do
+		if not data.wardrobe.owned[category] then
+			data.wardrobe.owned[category] = {}
+		end
+	end
+
+	-- Unlock tier-appropriate cosmetics
+	for cosmeticId, cosmetic in TreeConfig.Cosmetics do
+		if cosmetic.unlockTier <= data.tier then
+			local owned = data.wardrobe.owned[cosmetic.category]
+			local alreadyHas = false
+			for _, id in owned do
+				if id == cosmeticId then
+					alreadyHas = true
+					break
+				end
+			end
+			if not alreadyHas then
+				table.insert(owned, cosmeticId)
+			end
+		end
+	end
+end
+
 local function initPlayer(player: Player)
 	local startTier = TreeConfig.ProgressionTiers[0]
 	local data: PlayerData = {
@@ -439,11 +516,19 @@ local function initPlayer(player: Player)
 		maxSlots         = startTier.slotsGranted,
 		resources        = {},
 		trees            = {},
+		lastLogout       = 0,
+		wardrobe         = {
+			equipped = {},
+			owned = {},
+		},
 	}
 
 	for _, res in TreeConfig.ResourceOrder do
 		data.resources[res] = 0
 	end
+
+	-- Initialize wardrobe
+	initializeWardrobe(data)
 
 	-- Free starter tree at slot 1
 	table.insert(data.trees, {
@@ -458,24 +543,100 @@ local function initPlayer(player: Player)
 		dead        = false,
 	})
 
+	data.lastLogout = 0
 	DataStore[player.UserId] = data
 	buildPlayerPlot(player)
 	sendData(player)
 end
 
-Players.PlayerAdded:Connect(initPlayer)
+----------------------------------------------------------------------
+-- Calculate offline earnings from last logout
+----------------------------------------------------------------------
+local function processOfflineEarnings(data: PlayerData)
+	if data.lastLogout == 0 then return {} end  -- Never logged out before
+
+	local now = os.clock()
+	local elapsedTime = now - data.lastLogout
+	if elapsedTime <= 0 then return {} end
+
+	local maxTime = OFFLINE_EARNINGS_CAP
+	local actualTime = math.min(elapsedTime, maxTime)
+
+	local offlineCollected = {}  -- Track what was earned offline
+
+	for _, tree in data.trees do
+		if tree.dead or tree.withered then continue end
+		local cfg = TreeConfig.Trees[tree.treeType]
+		if not cfg then continue end
+
+		-- Calculate production cycles during offline time
+		local cycles = math.floor(actualTime / cfg.cycleTime)
+		if cycles > 0 then
+			local yield = cycles * cfg.yieldPerCycle
+			data.resources[cfg.resourceType] = (data.resources[cfg.resourceType] or 0) + yield
+			tree.totalYielded += yield
+			offlineCollected[cfg.resourceType] = (offlineCollected[cfg.resourceType] or 0) + yield
+			-- Reset harvest timer to now
+			tree.lastHarvest = now
+		end
+	end
+
+	return offlineCollected
+end
+
+Players.PlayerAdded:Connect(function(player)
+	-- Check if player data exists
+	if not DataStore[player.UserId] then
+		initPlayer(player)
+	else
+		-- Existing player - ensure wardrobe is initialized
+		local data = DataStore[player.UserId]
+		initializeWardrobe(data)
+	end
+	-- Process offline earnings
+	local data = DataStore[player.UserId]
+	if data then
+		local offlineCollected = processOfflineEarnings(data)
+		if next(offlineCollected) then
+			-- Show notification for each resource earned offline
+			for res, amt in offlineCollected do
+				NotificationEvent:FireClient(player, string.format(
+					"Offline bonus: +%d %s", amt, res
+				), "success")
+			end
+		end
+		sendData(player)
+	end
+end)
+
 Players.PlayerRemoving:Connect(function(player)
+	local data = DataStore[player.UserId]
+	if data then
+		data.lastLogout = os.clock()
+	end
 	if PlayerPlots[player.UserId] then
 		PlayerPlots[player.UserId]:Destroy()
 		PlayerPlots[player.UserId] = nil
 	end
 	TreeModels[player.UserId] = nil
-	DataStore[player.UserId] = nil
 end)
 
 for _, p in Players:GetPlayers() do
 	if not DataStore[p.UserId] then
 		initPlayer(p)
+	end
+	-- Ensure wardrobe is initialized
+	local data = DataStore[p.UserId]
+	if data then
+		initializeWardrobe(data)
+		local offlineCollected = processOfflineEarnings(data)
+		if next(offlineCollected) then
+			for res, amt in offlineCollected do
+				NotificationEvent:FireClient(p, string.format(
+					"Offline bonus: +%d %s", amt, res
+				), "success")
+			end
+		end
 	end
 end
 
@@ -562,7 +723,7 @@ for _, desc in Workspace:GetDescendants() do
 end
 
 ----------------------------------------------------------------------
--- Remote: GetPlayerData / GetMarketPrices
+-- Remote: GetPlayerData / GetMarketPrices / Wardrobe
 ----------------------------------------------------------------------
 GetDataFunc.OnServerInvoke = function(player)
 	return DataStore[player.UserId]
@@ -579,6 +740,42 @@ GetMarketFunc.OnServerInvoke = function(_player)
 		}
 	end
 	return prices
+end
+
+GetWardrobeFunc.OnServerInvoke = function(player)
+	local data = DataStore[player.UserId]
+	if not data then return nil end
+	return data.wardrobe
+end
+
+EquipCosmeticFunc.OnServerInvoke = function(player, category: string, cosmeticId: string)
+	local data = DataStore[player.UserId]
+	if not data then return false end
+	
+	-- Verify player owns this cosmetic
+	local owned = data.wardrobe.owned[category]
+	if not owned then return false end
+	
+	local hasCosmetic = false
+	for _, id in owned do
+		if id == cosmeticId then
+			hasCosmetic = true
+			break
+		end
+	end
+	
+	if not hasCosmetic then return false end
+	
+	-- Equip it
+	data.wardrobe.equipped[category] = cosmeticId
+	local cosmetic = TreeConfig.Cosmetics[cosmeticId]
+	if cosmetic then
+		NotificationEvent:FireClient(player, string.format(
+			TreeConfig.FeedbackMessages.cosmeticEquipped, cosmetic.name
+		), "success")
+	end
+	sendData(player)
+	return true
 end
 
 ----------------------------------------------------------------------

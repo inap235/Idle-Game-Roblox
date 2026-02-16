@@ -30,6 +30,8 @@ local ReviveTreeRemote   = Remotes:WaitForChild("ReviveTree")
 local CollectAllRemote   = Remotes:WaitForChild("CollectAll")
 local GetDataFunc        = Remotes:WaitForChild("GetPlayerData")
 local GetMarketFunc      = Remotes:WaitForChild("GetMarketPrices")
+local EquipCosmeticFunc  = Remotes:WaitForChild("EquipCosmetic")
+local GetWardrobeFunc    = Remotes:WaitForChild("GetWardrobe")
 local UpdateDataEvent    = Remotes:WaitForChild("UpdateData")
 local FeedbackEvent      = Remotes:WaitForChild("Feedback")
 local NotificationEvent  = Remotes:WaitForChild("Notification")
@@ -93,6 +95,77 @@ end
 local function addStroke(parent: Instance, color: Color3?, thickness: number?)
 	create("UIStroke", { Color = color or C.darkGray, Thickness = thickness or 1, Parent = parent })
 end
+
+----------------------------------------------------------------------
+-- Wardrobe clothing system using BodyColors
+----------------------------------------------------------------------
+local function applyClothingToCharacter(character, wardrobe)
+	if not character or not wardrobe or not wardrobe.equipped then return end
+	
+	-- Get humanoid
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return end
+	
+	-- Create or get BodyColors
+	local bodyColors = character:FindFirstChildOfClass("BodyColors")
+	if not bodyColors then
+		bodyColors = Instance.new("BodyColors")
+		bodyColors.Parent = character
+	end
+	
+	-- Default colors for base torso/arms/legs
+	local headColorObj = Color3.fromRGB(255, 200, 124)
+	local torsoColorObj = Color3.fromRGB(255, 200, 124)
+	local armColorObj = Color3.fromRGB(255, 200, 124)
+	local legColorObj = Color3.fromRGB(0, 0, 0)
+	
+	-- Apply hat color (affects head)
+	local hatId = wardrobe.equipped.hat
+	if hatId then
+		local hat = TreeConfig.Cosmetics[hatId]
+		if hat and hat.headColor then
+			headColorObj = hat.headColor
+		end
+	end
+	
+	-- Apply shirt colors (affects torso and arms)
+	local shirtId = wardrobe.equipped.shirt
+	if shirtId then
+		local shirt = TreeConfig.Cosmetics[shirtId]
+		if shirt then
+			if shirt.torsoColor then torsoColorObj = shirt.torsoColor end
+			if shirt.armColor then armColorObj = shirt.armColor end
+		end
+	end
+	
+	-- Apply pants color (affects legs)
+	local pantsId = wardrobe.equipped.pants
+	if pantsId then
+		local pants = TreeConfig.Cosmetics[pantsId]
+		if pants and pants.legColor then
+			legColorObj = pants.legColor
+		end
+	end
+	
+	-- Set the body colors
+	bodyColors.HeadColor3 = headColorObj
+	bodyColors.TorsoColor3 = torsoColorObj
+	bodyColors.LeftArmColor3 = armColorObj
+	bodyColors.RightArmColor3 = armColorObj
+	bodyColors.LeftLegColor3 = legColorObj
+	bodyColors.RightLegColor3 = legColorObj
+end
+
+local function updateCharacterWardrobe()
+	local character = player.Character
+	if not character or not cachedData or not cachedData.wardrobe then return end
+	applyClothingToCharacter(character, cachedData.wardrobe)
+end
+
+player.CharacterAdded:Connect(function(character)
+	task.wait(0.1)
+	updateCharacterWardrobe()
+end)
 
 ----------------------------------------------------------------------
 -- ScreenGui
@@ -498,6 +571,7 @@ local menuTabs = {
 	{ id = "shop",        label = "Shop",        order = 1 },
 	{ id = "market",      label = "Market",       order = 2 },
 	{ id = "progression", label = "Progression",  order = 3 },
+	{ id = "wardrobe",    label = "Wardrobe",     order = 4 },
 }
 
 local menuTabBtns = {}
@@ -505,11 +579,11 @@ local menuTabPanels = {}
 
 for _, tab in menuTabs do
 	local btn = create("TextButton", {
-		Size = UDim2.new(0, 190, 1, 0),
+		Size = UDim2.new(0.24, -2, 1, 0),
 		BackgroundColor3 = if tab.id == currentTab then C.panelLight else C.bg,
 		Text = tab.label,
 		TextColor3 = if tab.id == currentTab then C.accent else C.gray,
-		TextSize = 15,
+		TextSize = 12,
 		Font = Enum.Font.GothamBold,
 		LayoutOrder = tab.order,
 		BorderSizePixel = 0,
@@ -830,6 +904,141 @@ end
 menuTabPanels["progression"] = progPanel
 
 ----------------------------------------------------------------------
+--  WARDROBE PANEL
+----------------------------------------------------------------------
+local wardrobePanel = create("ScrollingFrame", {
+	Size = UDim2.new(1, 0, 1, 0),
+	BackgroundTransparency = 1,
+	ScrollBarThickness = 4, ScrollBarImageColor3 = C.gray,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	Visible = false, Parent = menuContent, ZIndex = 93,
+})
+addPadding(wardrobePanel, 10)
+create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8), Parent = wardrobePanel })
+
+create("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1,
+	Text = "Wardrobe  -  Unlock cosmetics by reaching tiers",
+	TextColor3 = C.white, TextSize = 17, Font = Enum.Font.GothamBold,
+	TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 0,
+	Parent = wardrobePanel, ZIndex = 94,
+})
+
+local wardrobeCategoryButtons = {}
+local wardrobeCosmeticCards = {}
+
+for i, category in TreeConfig.CosmeticCategories do
+	local categoryHeader = create("TextLabel", {
+		Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1,
+		Text = string.upper(category), TextColor3 = C.accent,
+		TextSize = 14, Font = Enum.Font.GothamBold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		LayoutOrder = i * 100,
+		Parent = wardrobePanel, ZIndex = 94,
+	})
+
+	if not wardrobeCosmeticCards[category] then
+		wardrobeCosmeticCards[category] = {}
+	end
+
+	-- Find all cosmetics of this category
+	local categoryCosmetics = {}
+	for cosmeticId, cosmetic in TreeConfig.Cosmetics do
+		if cosmetic.category == category then
+			table.insert(categoryCosmetics, { id = cosmeticId, data = cosmetic })
+		end
+	end
+
+	for j, cosmeticData in categoryCosmetics do
+		local cosmeticId = cosmeticData.id
+		local cosmetic = cosmeticData.data
+
+		-- Determine rarity color
+		local rarityColor = C.white
+		if cosmetic.rarity == "uncommon" then rarityColor = C.blue
+		elseif cosmetic.rarity == "rare" then rarityColor = Color3.fromRGB(160, 32, 240)
+		elseif cosmetic.rarity == "epic" then rarityColor = C.orange
+		elseif cosmetic.rarity == "legendary" then rarityColor = C.gold
+		elseif cosmetic.rarity == "mythic" then rarityColor = Color3.fromRGB(255, 0, 255) end
+
+		local card = create("Frame", {
+			Size = UDim2.new(1, 0, 0, 50),
+			BackgroundColor3 = C.panelLight, LayoutOrder = i * 100 + j,
+			Parent = wardrobePanel, ZIndex = 94,
+		})
+		addCorner(card, 8)
+		addStroke(card, rarityColor, 1)
+
+		create("TextLabel", {
+			Size = UDim2.new(0, 250, 0, 20), Position = UDim2.new(0, 10, 0, 6),
+			BackgroundTransparency = 1,
+			Text = cosmetic.icon .. "  " .. cosmetic.name .. "  (" .. cosmetic.rarity .. ")",
+			TextColor3 = rarityColor, TextSize = 13, Font = Enum.Font.GothamBold,
+			TextXAlignment = Enum.TextXAlignment.Left, Parent = card, ZIndex = 95,
+		})
+		create("TextLabel", {
+			Size = UDim2.new(0.5, 0, 0, 16), Position = UDim2.new(0, 10, 0, 28),
+			BackgroundTransparency = 1,
+			Text = "Unlock: Tier " .. cosmetic.unlockTier,
+			TextColor3 = C.gray, TextSize = 11, Font = Enum.Font.Gotham,
+			TextXAlignment = Enum.TextXAlignment.Left, Parent = card, ZIndex = 95,
+		})
+
+		local equipBtn = create("TextButton", {
+			Size = UDim2.new(0, 90, 0, 28), Position = UDim2.new(1, -100, 0.5, -14),
+			BackgroundColor3 = C.panelLight, Text = "Equip",
+			TextColor3 = C.accent, TextSize = 12, Font = Enum.Font.GothamBold,
+			Parent = card, ZIndex = 96,
+		})
+		addCorner(equipBtn, 6)
+		addStroke(equipBtn, C.accent, 1)
+
+		local lockOverlay = create("Frame", {
+			Size = UDim2.new(1, 0, 1, 0),
+			BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.6,
+			Visible = true, Parent = card, ZIndex = 97,
+		})
+		addCorner(lockOverlay, 8)
+		create("TextLabel", {
+			Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
+			Text = "🔒 Locked",
+			TextColor3 = C.gray, TextSize = 12, Font = Enum.Font.GothamBold,
+			Parent = lockOverlay, ZIndex = 98,
+		})
+
+		equipBtn.MouseButton1Click:Connect(function()
+			local ok, result = pcall(function()
+				return EquipCosmeticFunc:InvokeServer(category, cosmeticId)
+			end)
+			if ok and result then
+				-- Update UI to show this is equipped
+				for _, btn in wardrobeCategoryButtons[category] or {} do
+					btn.BackgroundColor3 = C.panelLight
+					btn.TextColor3 = C.accent
+				end
+				equipBtn.BackgroundColor3 = C.accent
+				equipBtn.TextColor3 = C.bg
+				-- Update character appearance
+				updateCharacterWardrobe()
+			end
+		end)
+
+		if not wardrobeCategoryButtons[category] then
+			wardrobeCategoryButtons[category] = {}
+		end
+		table.insert(wardrobeCategoryButtons[category], equipBtn)
+		wardrobeCosmeticCards[category][cosmeticId] = {
+			card = card,
+			equipBtn = equipBtn,
+			lockOverlay = lockOverlay,
+		}
+	end
+end
+
+menuTabPanels["wardrobe"] = wardrobePanel
+
+----------------------------------------------------------------------
 -- Menu tab switching
 ----------------------------------------------------------------------
 local function switchMenuTab(tabId: string)
@@ -957,6 +1166,42 @@ local function updateUI()
 			tc.statusLabel.Text = string.format("%d / %d", data.totalCoinsEarned, info.coinsRequired)
 		end
 	end
+
+	-- Wardrobe
+	if data.wardrobe and data.wardrobe.owned and data.wardrobe.equipped then
+		for category, items in wardrobeCosmeticCards do
+			for cosmeticId, cardUI in items do
+				local cosmetic = TreeConfig.Cosmetics[cosmeticId]
+				if cosmetic then
+					-- Check if owned
+					local owned = data.wardrobe.owned[category] or {}
+					local hasCosmetic = false
+					for _, id in owned do
+						if id == cosmeticId then hasCosmetic = true; break end
+					end
+
+					-- Update lock state
+					if cardUI.lockOverlay then
+						cardUI.lockOverlay.Visible = not hasCosmetic
+					end
+
+					-- Check if equipped
+					local isEquipped = (data.wardrobe.equipped[category] == cosmeticId)
+					if cardUI.equipBtn then
+						if isEquipped then
+							cardUI.equipBtn.BackgroundColor3 = C.accent
+							cardUI.equipBtn.TextColor3 = C.bg
+							cardUI.equipBtn.Text = "✓ Equipped"
+						else
+							cardUI.equipBtn.BackgroundColor3 = C.panelLight
+							cardUI.equipBtn.TextColor3 = C.accent
+							cardUI.equipBtn.Text = "Equip"
+						end
+					end
+				end
+			end
+		end
+	end
 end
 
 ----------------------------------------------------------------------
@@ -985,6 +1230,7 @@ end
 UpdateDataEvent.OnClientEvent:Connect(function(data)
 	cachedData = data
 	updateUI()
+	updateCharacterWardrobe()
 end)
 
 ----------------------------------------------------------------------
@@ -993,6 +1239,7 @@ end)
 task.spawn(function()
 	cachedData = GetDataFunc:InvokeServer()
 	updateUI()
+	updateCharacterWardrobe()
 end)
 
 ----------------------------------------------------------------------
