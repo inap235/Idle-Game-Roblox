@@ -39,6 +39,7 @@ local CollectAllEvent   = makeRemote("RemoteEvent",    "CollectAll")
 local GetDataFunc       = makeRemote("RemoteFunction", "GetPlayerData")
 local GetMarketFunc     = makeRemote("RemoteFunction", "GetMarketPrices")
 local EquipCosmeticFunc = makeRemote("RemoteFunction", "EquipCosmetic")
+local DequipCosmeticFunc = makeRemote("RemoteFunction", "DequipCosmetic")
 local GetWardrobeFunc   = makeRemote("RemoteFunction", "GetWardrobe")
 
 -- Server -> Client
@@ -386,27 +387,7 @@ local function checkTierUp(player: Player)
 		data.tier = nextTier
 		data.maxSlots = info.slotsGranted
 		
-		-- Unlock cosmetics for this tier
-		for cosmeticId, cosmetic in TreeConfig.Cosmetics do
-			if cosmetic.unlockTier == nextTier then
-				local owned = data.wardrobe.owned[cosmetic.category]
-				if owned then
-					local alreadyHas = false
-					for _, id in owned do
-						if id == cosmeticId then
-							alreadyHas = true
-							break
-						end
-					end
-					if not alreadyHas then
-						table.insert(owned, cosmeticId)
-					end
-				end
-				NotificationEvent:FireClient(player, string.format(
-					TreeConfig.FeedbackMessages.cosmeticUnlocked, cosmetic.name
-				), "success")
-			end
-		end
+		-- All cosmetics are now available from the start, so no need to unlock by tier
 		
 		TierUnlockEvent:FireClient(player, nextTier, info.name, info.unlocksText)
 		NotificationEvent:FireClient(player, string.format(
@@ -466,17 +447,15 @@ end
 -- Player init / cleanup
 ----------------------------------------------------------------------
 ----------------------------------------------------------------------
--- Initialize wardrobe for a player (handles both new and existing players)
+-- Initialize wardrobe for a player - grant basic clothing items
 ----------------------------------------------------------------------
 local function initializeWardrobe(data: PlayerData)
 	if not data.wardrobe then
 		data.wardrobe = {
 			equipped = {
-				hat = "BasicCap",
-				shirt = "PlainShirt",
-				pants = "BasicPants",
-				accessory = "SimpleBackpack",
-				skin = "DefaultHuman",
+				-- Start with nil - show default Roblox clothing
+				shirt = nil,
+				pants = nil,
 			},
 			owned = {},
 		}
@@ -489,20 +468,18 @@ local function initializeWardrobe(data: PlayerData)
 		end
 	end
 
-	-- Unlock tier-appropriate cosmetics
+	-- Unlock ALL clothing items for player (classic clothing is always available)
 	for cosmeticId, cosmetic in TreeConfig.Cosmetics do
-		if cosmetic.unlockTier <= data.tier then
-			local owned = data.wardrobe.owned[cosmetic.category]
-			local alreadyHas = false
-			for _, id in owned do
-				if id == cosmeticId then
-					alreadyHas = true
-					break
-				end
+		local owned = data.wardrobe.owned[cosmetic.category]
+		local alreadyHas = false
+		for _, id in owned do
+			if id == cosmeticId then
+				alreadyHas = true
+				break
 			end
-			if not alreadyHas then
-				table.insert(owned, cosmeticId)
-			end
+		end
+		if not alreadyHas then
+			table.insert(owned, cosmeticId)
 		end
 	end
 end
@@ -774,6 +751,17 @@ EquipCosmeticFunc.OnServerInvoke = function(player, category: string, cosmeticId
 			TreeConfig.FeedbackMessages.cosmeticEquipped, cosmetic.name
 		), "success")
 	end
+	sendData(player)
+	return true
+end
+
+DequipCosmeticFunc.OnServerInvoke = function(player, category: string)
+	local data = DataStore[player.UserId]
+	if not data then return false end
+	
+	-- Remove equipped item (set to nil/empty)
+	data.wardrobe.equipped[category] = nil
+	NotificationEvent:FireClient(player, "Clothing removed", "info")
 	sendData(player)
 	return true
 end

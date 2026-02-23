@@ -218,266 +218,96 @@ TreeConfig.FeedbackMessages = {
 }
 
 --------------------------------------------------------------------------------
--- Cosmetics / Wardrobe
+-- Cosmetics / Wardrobe - CLASSIC CLOTHING ONLY
+-- Using verified Roblox classic clothing template asset IDs
 --------------------------------------------------------------------------------
 TreeConfig.Cosmetics = {
-	-- HATS
-	BasicCap = {
-		id = "BasicCap",
-		name = "Basic Cap",
-		icon = "🧢",
-		category = "hat",
-		rarity = "common",
-		unlockTier = 0,
-		bonus = {},
-		headColor = Color3.fromRGB(100, 100, 100),
-	},
-	GardenerHat = {
-		id = "GardenerHat",
-		name = "Gardener's Hat",
-		icon = "🎩",
-		category = "hat",
-		rarity = "uncommon",
-		unlockTier = 1,
-		bonus = {},
-		headColor = Color3.fromRGB(139, 90, 43),
-	},
-	CrownOfGems = {
-		id = "CrownOfGems",
-		name = "Crown of Gems",
-		icon = "👑",
-		category = "hat",
-		rarity = "legendary",
-		unlockTier = 3,
-		bonus = { productionMultiplier = 1.02 },
-		headColor = Color3.fromRGB(255, 215, 0),
-	},
-	DiamondHalo = {
-		id = "DiamondHalo",
-		name = "Diamond Halo",
-		icon = "💎",
-		category = "hat",
-		rarity = "epic",
-		unlockTier = 5,
-		bonus = { productionMultiplier = 1.03 },
-		headColor = Color3.fromRGB(185, 242, 255),
-	},
-	MysticMask = {
-		id = "MysticMask",
-		name = "Mystic Mask",
-		icon = "🎭",
-		category = "hat",
-		rarity = "rare",
-		unlockTier = 2,
-		bonus = {},
-		headColor = Color3.fromRGB(160, 32, 240),
-	},
-
-	-- SHIRTS
-	PlainShirt = {
-		id = "PlainShirt",
-		name = "Plain Shirt",
+	-- SHIRTS (Classic Roblox Clothing - Base templates with Color3 colorization)
+	WhiteShirt = {
+		id = "WhiteShirt",
+		name = "White Shirt",
 		icon = "👕",
 		category = "shirt",
-		rarity = "common",
-		unlockTier = 0,
-		bonus = {},
-		torsoColor = Color3.fromRGB(255, 255, 255),
-		armColor = Color3.fromRGB(255, 200, 124),
+		assetId = "rbxassetid://86896487",  -- Classic white shirt template
+		color = Color3.fromRGB(255, 255, 255),  -- White
 	},
-	GemCollectorAttire = {
-		id = "GemCollectorAttire",
-		name = "Gem Collector Attire",
-		icon = "💎",
+	RedShirt = {
+		id = "RedShirt",
+		name = "Red Shirt",
+		icon = "👕",
 		category = "shirt",
-		rarity = "epic",
-		unlockTier = 3,
-		bonus = { resourceValue = 1.05 },
-		torsoColor = Color3.fromRGB(70, 130, 230),
-		armColor = Color3.fromRGB(70, 130, 230),
+		assetId = "rbxassetid://86896487",  -- Using base template with Color3
+		color = Color3.fromRGB(255, 0, 0),  -- Red
 	},
-	GoldenVest = {
-		id = "GoldenVest",
-		name = "Golden Vest",
-		icon = "🟡",
+	BlueShirt = {
+		id = "BlueShirt",
+		name = "Blue Shirt",
+		icon = "👕",
 		category = "shirt",
-		rarity = "legendary",
-		unlockTier = 4,
-		bonus = { resourceValue = 1.03 },
-		torsoColor = Color3.fromRGB(255, 215, 0),
-		armColor = Color3.fromRGB(255, 215, 0),
+		assetId = "rbxassetid://86896487",  -- Using base template with Color3
+		color = Color3.fromRGB(0, 0, 255),  -- Blue
 	},
-	RobeOfPower = {
-		id = "RobeOfPower",
-		name = "Robe of Power",
-		icon = "🪄",
+	GreenShirt = {
+		id = "GreenShirt",
+		name = "Green Shirt",
+		icon = "👕",
 		category = "shirt",
-		rarity = "rare",
-		unlockTier = 2,
-		bonus = {},
-		torsoColor = Color3.fromRGB(128, 0, 128),
-		armColor = Color3.fromRGB(128, 0, 128),
+		assetId = "rbxassetid://86896487",  -- Using base template with Color3
+		color = Color3.fromRGB(0, 255, 0),  -- Green
 	},
-	DiamondPlateArmor = {
-		id = "DiamondPlateArmor",
-		name = "Diamond Plate Armor",
-		icon = "⚔️",
+	PurpleShirt = {
+		id = "PurpleShirt",
+		name = "Purple Shirt",
+		icon = "👕",
 		category = "shirt",
-		rarity = "epic",
-		unlockTier = 5,
-		bonus = { productionMultiplier = 1.02 },
-		torsoColor = Color3.fromRGB(192, 192, 192),
-		armColor = Color3.fromRGB(192, 192, 192),
+		assetId = "rbxassetid://86896487",  -- Using base template with Color3
+		color = Color3.fromRGB(128, 0, 255),  -- Purple
 	},
 
-	-- PANTS
-	BasicPants = {
-		id = "BasicPants",
-		name = "Basic Pants",
+	-- PANTS (Classic Roblox Clothing - Base templates with Color3 colorization)
+	WhitePants = {
+		id = "WhitePants",
+		name = "White Pants",
 		icon = "👖",
 		category = "pants",
-		rarity = "common",
-		unlockTier = 0,
-		bonus = {},
-		legColor = Color3.fromRGB(0, 0, 0),
+		assetId = "rbxassetid://86896501",  -- Classic pants template
+		color = Color3.fromRGB(255, 255, 255),  -- White
 	},
-	GardenOveralls = {
-		id = "GardenOveralls",
-		name = "Garden Overalls",
-		icon = "🦺",
+	BlackPants = {
+		id = "BlackPants",
+		name = "Black Pants",
+		icon = "👖",
 		category = "pants",
-		rarity = "uncommon",
-		unlockTier = 1,
-		bonus = {},
-		legColor = Color3.fromRGB(34, 139, 34),
+		assetId = "rbxassetid://86896501",  -- Using base template with Color3
+		color = Color3.fromRGB(0, 0, 0),  -- Black
 	},
-	RoyalTrousers = {
-		id = "RoyalTrousers",
-		name = "Royal Trousers",
-		icon = "🟣",
+	BluePants = {
+		id = "BluePants",
+		name = "Blue Pants",
+		icon = "👖",
 		category = "pants",
-		rarity = "epic",
-		unlockTier = 3,
-		bonus = {},
-		legColor = Color3.fromRGB(128, 0, 128),
+		assetId = "rbxassetid://86896501",  -- Using base template with Color3
+		color = Color3.fromRGB(0, 0, 255),  -- Blue
 	},
-	TycoonSlacks = {
-		id = "TycoonSlacks",
-		name = "Tycoon Slacks",
-		icon = "💼",
+	GreenPants = {
+		id = "GreenPants",
+		name = "Green Pants",
+		icon = "👖",
 		category = "pants",
-		rarity = "legendary",
-		unlockTier = 4,
-		bonus = {},
-		legColor = Color3.fromRGB(50, 50, 50),
+		assetId = "rbxassetid://86896501",  -- Using base template with Color3
+		color = Color3.fromRGB(0, 255, 0),  -- Green
 	},
-	CasualJeans = {
-		id = "CasualJeans",
-		name = "Casual Jeans",
-		icon = "🔵",
+	JeansPants = {
+		id = "JeansPants",
+		name = "Jeans Pants",
+		icon = "👖",
 		category = "pants",
-		rarity = "common",
-		unlockTier = 0,
-		bonus = {},
-		legColor = Color3.fromRGB(0, 51, 153),
-	},
-
-	-- ACCESSORIES
-	SimpleBackpack = {
-		id = "SimpleBackpack",
-		name = "Simple Backpack",
-		icon = "🎒",
-		category = "accessory",
-		rarity = "uncommon",
-		unlockTier = 1,
-		bonus = {},
-	},
-	BackpackOfWonder = {
-		id = "BackpackOfWonder",
-		name = "Backpack of Wonder",
-		icon = "✨🎒",
-		category = "accessory",
-		rarity = "rare",
-		unlockTier = 2,
-		bonus = { coinBonus = 1.02 },
-	},
-	LuckyCharm = {
-		id = "LuckyCharm",
-		name = "Lucky Charm",
-		icon = "🍀",
-		category = "accessory",
-		rarity = "rare",
-		unlockTier = 2,
-		bonus = {},
-	},
-	TycoonWatch = {
-		id = "TycoonWatch",
-		name = "Tycoon Watch",
-		icon = "⌚",
-		category = "accessory",
-		rarity = "legendary",
-		unlockTier = 4,
-		bonus = { resourceValue = 1.02 },
-	},
-	AscendedAura = {
-		id = "AscendedAura",
-		name = "Ascended Aura",
-		icon = "✨",
-		category = "accessory",
-		rarity = "legendary",
-		unlockTier = 5,
-		bonus = {},
-	},
-
-	-- SKINS
-	DefaultHuman = {
-		id = "DefaultHuman",
-		name = "Human",
-		icon = "🧑",
-		category = "skin",
-		rarity = "common",
-		unlockTier = 0,
-		bonus = {},
-	},
-	GnomeSkin = {
-		id = "GnomeSkin",
-		name = "Gnome",
-		icon = "🧙",
-		category = "skin",
-		rarity = "uncommon",
-		unlockTier = 1,
-		bonus = {},
-	},
-	FairySkin = {
-		id = "FairySkin",
-		name = "Fairy",
-		icon = "🧚",
-		category = "skin",
-		rarity = "rare",
-		unlockTier = 2,
-		bonus = { productionMultiplier = 1.01 },
-	},
-	WizardSkin = {
-		id = "WizardSkin",
-		name = "Wizard",
-		icon = "🧙",
-		category = "skin",
-		rarity = "epic",
-		unlockTier = 3,
-		bonus = {},
-	},
-	TycoonSkin = {
-		id = "TycoonSkin",
-		name = "Business Tycoon",
-		icon = "🕴️",
-		category = "skin",
-		rarity = "legendary",
-		unlockTier = 5,
-		bonus = { resourceValue = 1.01, productionMultiplier = 1.01 },
+		assetId = "rbxassetid://86896501",  -- Using base template with Color3
+		color = Color3.fromRGB(25, 25, 112),  -- Indigo (jean blue)
 	},
 }
 
--- Cosmetics ordered by category for UI
-TreeConfig.CosmeticCategories = { "hat", "shirt", "pants", "accessory", "skin" }
+-- Only show shirt and pants categories for classic clothing
+TreeConfig.CosmeticCategories = { "shirt", "pants" }
 
 return TreeConfig

@@ -31,6 +31,7 @@ local CollectAllRemote   = Remotes:WaitForChild("CollectAll")
 local GetDataFunc        = Remotes:WaitForChild("GetPlayerData")
 local GetMarketFunc      = Remotes:WaitForChild("GetMarketPrices")
 local EquipCosmeticFunc  = Remotes:WaitForChild("EquipCosmetic")
+local DequipCosmeticFunc = Remotes:WaitForChild("DequipCosmetic")
 local GetWardrobeFunc    = Remotes:WaitForChild("GetWardrobe")
 local UpdateDataEvent    = Remotes:WaitForChild("UpdateData")
 local FeedbackEvent      = Remotes:WaitForChild("Feedback")
@@ -97,63 +98,64 @@ local function addStroke(parent: Instance, color: Color3?, thickness: number?)
 end
 
 ----------------------------------------------------------------------
--- Wardrobe clothing system using BodyColors
+-- Wardrobe clothing system using Shirt and Pants with Color3 colorization
 ----------------------------------------------------------------------
 local function applyClothingToCharacter(character, wardrobe)
 	if not character or not wardrobe or not wardrobe.equipped then return end
 	
-	-- Get humanoid
+	-- Wait for humanoid to ensure character is loaded
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if not humanoid then return end
 	
-	-- Create or get BodyColors
+	-- Remove any BodyColors that might interfere with clothing colors
 	local bodyColors = character:FindFirstChildOfClass("BodyColors")
-	if not bodyColors then
-		bodyColors = Instance.new("BodyColors")
-		bodyColors.Parent = character
+	if bodyColors then
+		bodyColors:Destroy()
 	end
 	
-	-- Default colors for base torso/arms/legs
-	local headColorObj = Color3.fromRGB(255, 200, 124)
-	local torsoColorObj = Color3.fromRGB(255, 200, 124)
-	local armColorObj = Color3.fromRGB(255, 200, 124)
-	local legColorObj = Color3.fromRGB(0, 0, 0)
-	
-	-- Apply hat color (affects head)
-	local hatId = wardrobe.equipped.hat
-	if hatId then
-		local hat = TreeConfig.Cosmetics[hatId]
-		if hat and hat.headColor then
-			headColorObj = hat.headColor
-		end
+	-- Always remove old Shirt first to prevent conflicts
+	local existingShirt = character:FindFirstChild("Shirt")
+	if existingShirt then
+		existingShirt:Destroy()
 	end
 	
-	-- Apply shirt colors (affects torso and arms)
+	-- Always remove old Pants first to prevent conflicts
+	local existingPants = character:FindFirstChild("Pants")
+	if existingPants then
+		existingPants:Destroy()
+	end
+	
+	-- Apply new SHIRT (torso and arms) with Color3 colorization
 	local shirtId = wardrobe.equipped.shirt
 	if shirtId then
 		local shirt = TreeConfig.Cosmetics[shirtId]
-		if shirt then
-			if shirt.torsoColor then torsoColorObj = shirt.torsoColor end
-			if shirt.armColor then armColorObj = shirt.armColor end
+		if shirt and shirt.assetId then
+			local newShirt = Instance.new("Shirt")
+			newShirt.Name = "Shirt"
+			newShirt.ShirtTemplate = shirt.assetId
+			-- Apply color tint to the shirt
+			if shirt.color then
+				newShirt.Color3 = shirt.color
+			end
+			newShirt.Parent = character
 		end
 	end
 	
-	-- Apply pants color (affects legs)
+	-- Apply new PANTS (legs) with Color3 colorization
 	local pantsId = wardrobe.equipped.pants
 	if pantsId then
 		local pants = TreeConfig.Cosmetics[pantsId]
-		if pants and pants.legColor then
-			legColorObj = pants.legColor
+		if pants and pants.assetId then
+			local newPants = Instance.new("Pants")
+			newPants.Name = "Pants"
+			newPants.PantsTemplate = pants.assetId
+			-- Apply color tint to the pants
+			if pants.color then
+				newPants.Color3 = pants.color
+			end
+			newPants.Parent = character
 		end
 	end
-	
-	-- Set the body colors
-	bodyColors.HeadColor3 = headColorObj
-	bodyColors.TorsoColor3 = torsoColorObj
-	bodyColors.LeftArmColor3 = armColorObj
-	bodyColors.RightArmColor3 = armColorObj
-	bodyColors.LeftLegColor3 = legColorObj
-	bodyColors.RightLegColor3 = legColorObj
 end
 
 local function updateCharacterWardrobe()
@@ -919,7 +921,7 @@ create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.
 
 create("TextLabel", {
 	Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1,
-	Text = "Wardrobe  -  Unlock cosmetics by reaching tiers",
+	Text = "Wardrobe  -  Choose your classic clothing",
 	TextColor3 = C.white, TextSize = 17, Font = Enum.Font.GothamBold,
 	TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 0,
 	Parent = wardrobePanel, ZIndex = 94,
@@ -954,39 +956,24 @@ for i, category in TreeConfig.CosmeticCategories do
 		local cosmeticId = cosmeticData.id
 		local cosmetic = cosmeticData.data
 
-		-- Determine rarity color
-		local rarityColor = C.white
-		if cosmetic.rarity == "uncommon" then rarityColor = C.blue
-		elseif cosmetic.rarity == "rare" then rarityColor = Color3.fromRGB(160, 32, 240)
-		elseif cosmetic.rarity == "epic" then rarityColor = C.orange
-		elseif cosmetic.rarity == "legendary" then rarityColor = C.gold
-		elseif cosmetic.rarity == "mythic" then rarityColor = Color3.fromRGB(255, 0, 255) end
-
 		local card = create("Frame", {
 			Size = UDim2.new(1, 0, 0, 50),
 			BackgroundColor3 = C.panelLight, LayoutOrder = i * 100 + j,
 			Parent = wardrobePanel, ZIndex = 94,
 		})
 		addCorner(card, 8)
-		addStroke(card, rarityColor, 1)
+		addStroke(card, C.accent, 1)
 
 		create("TextLabel", {
-			Size = UDim2.new(0, 250, 0, 20), Position = UDim2.new(0, 10, 0, 6),
+			Size = UDim2.new(0.6, 0, 0, 20), Position = UDim2.new(0, 10, 0, 15),
 			BackgroundTransparency = 1,
-			Text = cosmetic.icon .. "  " .. cosmetic.name .. "  (" .. cosmetic.rarity .. ")",
-			TextColor3 = rarityColor, TextSize = 13, Font = Enum.Font.GothamBold,
-			TextXAlignment = Enum.TextXAlignment.Left, Parent = card, ZIndex = 95,
-		})
-		create("TextLabel", {
-			Size = UDim2.new(0.5, 0, 0, 16), Position = UDim2.new(0, 10, 0, 28),
-			BackgroundTransparency = 1,
-			Text = "Unlock: Tier " .. cosmetic.unlockTier,
-			TextColor3 = C.gray, TextSize = 11, Font = Enum.Font.Gotham,
+			Text = cosmetic.icon .. "  " .. cosmetic.name,
+			TextColor3 = C.white, TextSize = 13, Font = Enum.Font.GothamBold,
 			TextXAlignment = Enum.TextXAlignment.Left, Parent = card, ZIndex = 95,
 		})
 
 		local equipBtn = create("TextButton", {
-			Size = UDim2.new(0, 90, 0, 28), Position = UDim2.new(1, -100, 0.5, -14),
+			Size = UDim2.new(0, 75, 0, 28), Position = UDim2.new(1, -175, 0.5, -14),
 			BackgroundColor3 = C.panelLight, Text = "Equip",
 			TextColor3 = C.accent, TextSize = 12, Font = Enum.Font.GothamBold,
 			Parent = card, ZIndex = 96,
@@ -994,32 +981,31 @@ for i, category in TreeConfig.CosmeticCategories do
 		addCorner(equipBtn, 6)
 		addStroke(equipBtn, C.accent, 1)
 
-		local lockOverlay = create("Frame", {
-			Size = UDim2.new(1, 0, 1, 0),
-			BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.6,
-			Visible = true, Parent = card, ZIndex = 97,
-		})
-		addCorner(lockOverlay, 8)
-		create("TextLabel", {
-			Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
-			Text = "🔒 Locked",
+		local dequipBtn = create("TextButton", {
+			Size = UDim2.new(0, 75, 0, 28), Position = UDim2.new(1, -85, 0.5, -14),
+			BackgroundColor3 = C.panelLight, Text = "Dequip",
 			TextColor3 = C.gray, TextSize = 12, Font = Enum.Font.GothamBold,
-			Parent = lockOverlay, ZIndex = 98,
+			Parent = card, ZIndex = 96,
 		})
+		addCorner(dequipBtn, 6)
+		addStroke(dequipBtn, C.gray, 1)
 
 		equipBtn.MouseButton1Click:Connect(function()
 			local ok, result = pcall(function()
 				return EquipCosmeticFunc:InvokeServer(category, cosmeticId)
 			end)
 			if ok and result then
-				-- Update UI to show this is equipped
-				for _, btn in wardrobeCategoryButtons[category] or {} do
-					btn.BackgroundColor3 = C.panelLight
-					btn.TextColor3 = C.accent
-				end
-				equipBtn.BackgroundColor3 = C.accent
-				equipBtn.TextColor3 = C.bg
 				-- Update character appearance
+				updateCharacterWardrobe()
+			end
+		end)
+
+		dequipBtn.MouseButton1Click:Connect(function()
+			local ok, result = pcall(function()
+				return DequipCosmeticFunc:InvokeServer(category)
+			end)
+			if ok and result then
+				-- Update character appearance (removes clothing)
 				updateCharacterWardrobe()
 			end
 		end)
@@ -1031,7 +1017,7 @@ for i, category in TreeConfig.CosmeticCategories do
 		wardrobeCosmeticCards[category][cosmeticId] = {
 			card = card,
 			equipBtn = equipBtn,
-			lockOverlay = lockOverlay,
+			dequipBtn = dequipBtn,
 		}
 	end
 end
