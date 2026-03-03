@@ -106,10 +106,24 @@ initMarket()
 local function tickMarket(dt: number)
 	local cfg = TreeConfig.MarketConfig
 	for res, mult in MarketPrices do
+		-- Recover toward 1.0 from either direction
 		if mult < 1.0 then
 			MarketPrices[res] = math.min(1.0, mult + cfg.recoveryRate * dt)
 		elseif mult > 1.0 then
 			MarketPrices[res] = math.max(1.0, mult - cfg.recoveryRate * dt * 0.5)
+		end
+	end
+
+	-- Random boom events (TASK 9 economics)
+	if math.random() < cfg.boomChance then
+		local idx = math.random(1, #TreeConfig.ResourceOrder)
+		local boomRes = TreeConfig.ResourceOrder[idx]
+		local newPrice = math.min(cfg.maxPriceMultiplier, (MarketPrices[boomRes] or 1) * cfg.boomMultiplier)
+		MarketPrices[boomRes] = newPrice
+		for _, p in Players:GetPlayers() do
+			NotificationEvent:FireClient(p, string.format(
+				TreeConfig.FeedbackMessages.marketBoom, boomRes
+			), "success")
 		end
 	end
 end
@@ -416,15 +430,22 @@ local function buildPlayerPlot(player: Player)
 	PlayerPlots[player.UserId] = plotFolder
 	TreeModels[player.UserId] = {}
 
-	-- Create ground plot
-	local plotSize = TreeConfig.GridColumns * TreeConfig.GridSpacing + 8
+	-- Remove old baseplate if it exists (avoid duplicate floors)
+	local oldBaseplate = Workspace:FindFirstChild("Baseplate")
+	if oldBaseplate then
+		oldBaseplate.Transparency = 1
+		oldBaseplate.CanCollide = false
+	end
+
+	-- Create ground plot (single solid ground)
+	local plotSize = TreeConfig.GridColumns * TreeConfig.GridSpacing + 20
 	local maxRows = math.ceil(12 / TreeConfig.GridColumns)
-	local plotDepth = maxRows * TreeConfig.GridSpacing + 16
+	local plotDepth = maxRows * TreeConfig.GridSpacing + 24
 
 	local ground = Instance.new("Part")
 	ground.Name = "PlotGround"
 	ground.Size = Vector3.new(plotSize, 1, plotDepth)
-	ground.Position = Vector3.new(TreeConfig.PlotOrigin.X, -0.5, TreeConfig.PlotOrigin.Z + plotDepth / 2 - 4)
+	ground.Position = Vector3.new(TreeConfig.PlotOrigin.X, -0.5, TreeConfig.PlotOrigin.Z + plotDepth / 2 - 6)
 	ground.Color = Color3.fromRGB(76, 153, 0)
 	ground.Material = Enum.Material.Grass
 	ground.Anchored = true
@@ -767,7 +788,7 @@ DequipCosmeticFunc.OnServerInvoke = function(player, category: string)
 end
 
 ----------------------------------------------------------------------
--- Remote: PlantTree
+-- Remote: PlantTree  (TASK 10 – seed cost + coin cost)
 ----------------------------------------------------------------------
 PlantTreeEvent.OnServerEvent:Connect(function(player, treeTypeId: string)
 	local data = DataStore[player.UserId]
@@ -776,6 +797,7 @@ PlantTreeEvent.OnServerEvent:Connect(function(player, treeTypeId: string)
 	local treeCfg = TreeConfig.Trees[treeTypeId]
 	if not treeCfg then return end
 
+	-- Check tier unlock
 	if data.tier < treeCfg.unlockTier then
 		FeedbackEvent:FireClient(player, string.format(
 			TreeConfig.FeedbackMessages.notUnlocked, treeCfg.unlockTier
@@ -783,17 +805,44 @@ PlantTreeEvent.OnServerEvent:Connect(function(player, treeTypeId: string)
 		return
 	end
 
+	-- Check free slot
 	local slotIndex = getNextSlotIndex(data)
 	if not slotIndex then
 		FeedbackEvent:FireClient(player, TreeConfig.FeedbackMessages.slotsFull, "error")
 		return
 	end
 
+	-- Check coin cost
 	if data.coins < treeCfg.cost then
 		FeedbackEvent:FireClient(player, TreeConfig.FeedbackMessages.notEnoughCoins, "error")
 		return
 	end
 
+	-- Check seed cost (resource cost for progression)
+	if treeCfg.seedCost then
+		local missingList = {}
+		for res, needed in treeCfg.seedCost do
+			local have = data.resources[res] or 0
+			if have < needed then
+				table.insert(missingList, string.format("%d/%d %s", have, needed, res))
+			end
+		end
+		if #missingList > 0 then
+			FeedbackEvent:FireClient(player, string.format(
+				TreeConfig.FeedbackMessages.notEnoughSeeds, table.concat(missingList, ", ")
+			), "error")
+			return
+		end
+		-- Deduct seed resources
+		for res, needed in treeCfg.seedCost do
+			data.resources[res] -= needed
+		end
+		FeedbackEvent:FireClient(player, string.format(
+			TreeConfig.FeedbackMessages.seedPurchased, treeCfg.name
+		), "success")
+	end
+
+	-- Deduct coins
 	data.coins -= treeCfg.cost
 	local newTree: TreeInstance = {
 		id          = treeTypeId .. "_" .. tostring(os.clock()) .. "_" .. tostring(math.random(1000, 9999)),
@@ -903,7 +952,7 @@ ReviveTreeEvent.OnServerEvent:Connect(function(player, treeId: string)
 end)
 
 ----------------------------------------------------------------------
--- Remote: SellResource
+-- Remote: SellResource  (TASK 9 – tax + oversell warning)
 ----------------------------------------------------------------------
 SellResourceEvent.OnServerEvent:Connect(function(player, resource: string, amount: number?)
 	local data = DataStore[player.UserId]
@@ -919,18 +968,26 @@ SellResourceEvent.OnServerEvent:Connect(function(player, resource: string, amoun
 		return
 	end
 
+	-- Oversell warning (consequence feedback)
+	if toSell > 50 then
+		NotificationEvent:FireClient(player, TreeConfig.FeedbackMessages.oversellWarning, "warn")
+	end
+
 	local baseValue = TreeConfig.ResourceValues[resource]
 	local mult = MarketPrices[resource] or 1
-	local totalValue = math.floor(toSell * baseValue * mult + 0.5)
+	local grossValue = math.floor(toSell * baseValue * mult + 0.5)
+	local taxRate = TreeConfig.MarketConfig.taxRate or 0.05
+	local taxAmount = math.floor(grossValue * taxRate + 0.5)
+	local netValue = grossValue - taxAmount
 
 	data.resources[resource] -= toSell
-	data.coins += totalValue
-	data.totalCoinsEarned += totalValue
+	data.coins += netValue
+	data.totalCoinsEarned += netValue
 
 	dropPrice(resource, toSell)
 
 	FeedbackEvent:FireClient(player, string.format(
-		TreeConfig.FeedbackMessages.soldResources, toSell, resource, totalValue
+		TreeConfig.FeedbackMessages.soldResources, toSell, resource, netValue, taxAmount
 	), "coins")
 
 	checkTierUp(player)
@@ -1048,12 +1105,18 @@ RunService.Heartbeat:Connect(function(dt)
 			NotificationEvent:FireClient(player, string.format(
 				TreeConfig.FeedbackMessages.treeWithering, name
 			), "warn")
+			-- Extra consequence feedback
+			NotificationEvent:FireClient(player,
+				TreeConfig.FeedbackMessages.witherWarning, "warn")
 		end
 
 		for _, name in deathNotices do
 			NotificationEvent:FireClient(player, string.format(
 				TreeConfig.FeedbackMessages.treeDied, name
 			), "error")
+			-- Consequence: dead trees waste a slot
+			NotificationEvent:FireClient(player,
+				TreeConfig.FeedbackMessages.deathPenalty, "error")
 		end
 
 		if changed then

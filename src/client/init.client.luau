@@ -626,7 +626,7 @@ create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.
 create("TextLabel", {
 	Size = UDim2.new(1, 0, 0, 28),
 	BackgroundTransparency = 1,
-	Text = "Seed Shop  -  Buy seeds to grow new trees",
+	Text = "Seed Shop  -  Collect resources + coins to plant trees",
 	TextColor3 = C.white, TextSize = 17, Font = Enum.Font.GothamBold,
 	TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 0,
 	Parent = shopPanel, ZIndex = 94,
@@ -636,8 +636,20 @@ local shopCards = {}
 for i, treeId in TreeConfig.TreeOrder do
 	local treeCfg = TreeConfig.Trees[treeId]
 
+	-- Build seed cost text
+	local seedText = ""
+	if treeCfg.seedCost then
+		local parts = {}
+		for res, amt in treeCfg.seedCost do
+			table.insert(parts, amt .. " " .. res)
+		end
+		seedText = "Seed: " .. table.concat(parts, " + ")
+	end
+
+	local cardHeight = if seedText ~= "" then 94 else 78
+
 	local card = create("Frame", {
-		Size = UDim2.new(1, 0, 0, 78),
+		Size = UDim2.new(1, 0, 0, cardHeight),
 		BackgroundColor3 = C.panelLight,
 		LayoutOrder = i, Parent = shopPanel, ZIndex = 94,
 	})
@@ -663,6 +675,17 @@ for i, treeId in TreeConfig.TreeOrder do
 		TextColor3 = C.gray, TextSize = 10, Font = Enum.Font.Gotham,
 		TextXAlignment = Enum.TextXAlignment.Left, Parent = card, ZIndex = 95,
 	})
+
+	-- Seed cost label (progression requirement)
+	if seedText ~= "" then
+		create("TextLabel", {
+			Size = UDim2.new(0.55, 0, 0, 14), Position = UDim2.new(0, 10, 0, 62),
+			BackgroundTransparency = 1,
+			Text = "🌰 " .. seedText,
+			TextColor3 = C.orange, TextSize = 10, Font = Enum.Font.GothamMedium,
+			TextXAlignment = Enum.TextXAlignment.Left, Parent = card, ZIndex = 95,
+		})
+	end
 
 	local costText = if treeCfg.cost == 0 then "FREE" else treeCfg.cost .. " coins"
 	local buyBtn = create("TextButton", {
@@ -718,7 +741,7 @@ create("TextLabel", {
 })
 create("TextLabel", {
 	Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1,
-	Text = "Selling large amounts crashes prices. They recover over time.",
+	Text = "5% tax on all sales. Overselling crashes prices. Booms happen randomly!",
 	TextColor3 = C.orange, TextSize = 11, Font = Enum.Font.Gotham,
 	TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = true,
 	LayoutOrder = 1, Parent = marketPanel, ZIndex = 94,
@@ -803,7 +826,7 @@ create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.
 
 create("TextLabel", {
 	Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1,
-	Text = "Progression Tree  -  Earn coins to unlock tiers",
+	Text = "Progression  -  Earn coins to unlock tiers, collect resources for seeds",
 	TextColor3 = C.white, TextSize = 17, Font = Enum.Font.GothamBold,
 	TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 0,
 	Parent = progPanel, ZIndex = 94,
@@ -1200,11 +1223,19 @@ local function refreshMarketPrices()
 	for res, info in prices do
 		local mc = marketCards[res]
 		if mc then
-			mc.priceLabel.Text = string.format("Price: %d coin%s", info.effective, if info.effective ~= 1 then "s" else "")
-			mc.multLabel.Text = string.format("Market: %d%%", info.multiplier * 100)
-			if info.multiplier < 0.7 then mc.multLabel.TextColor3 = C.red
-			elseif info.multiplier < 0.9 then mc.multLabel.TextColor3 = C.orange
-			elseif info.multiplier > 1.1 then mc.multLabel.TextColor3 = C.accent
+			local afterTax = math.floor(info.effective * 0.95 + 0.5)
+			mc.priceLabel.Text = string.format("Price: %d (net %d)", info.effective, afterTax)
+			local pctText = string.format("Market: %d%%", info.multiplier * 100)
+			if info.multiplier > 1.1 then
+				pctText = "📈 " .. pctText
+			elseif info.multiplier < 0.6 then
+				pctText = "📉 " .. pctText
+			end
+			mc.multLabel.Text = pctText
+			if info.multiplier < 0.5 then mc.multLabel.TextColor3 = C.red
+			elseif info.multiplier < 0.8 then mc.multLabel.TextColor3 = C.orange
+			elseif info.multiplier > 1.2 then mc.multLabel.TextColor3 = C.accent
+			elseif info.multiplier > 1.0 then mc.multLabel.TextColor3 = C.blue
 			else mc.multLabel.TextColor3 = C.gray end
 		end
 	end

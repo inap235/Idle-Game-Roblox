@@ -1,12 +1,16 @@
 --[[
 	TreeConfig – shared configuration for the Idle Gem-Tree Game
 	Used by both server and client.
+	
+	TASK 8:  Feedbacks & consequences
+	TASK 9:  Economics (supply/demand, taxes, boom/crash)
+	TASK 10: Progression – collect resources to buy SEEDS for gem trees
 ]]
 
 local TreeConfig = {}
 
 --------------------------------------------------------------------------------
--- Tree Definitions  (now with 3D appearance data)
+-- Tree Definitions  (seedCost = resources needed to BUY the seed)
 --------------------------------------------------------------------------------
 TreeConfig.Trees = {
 	BasicTree = {
@@ -14,6 +18,7 @@ TreeConfig.Trees = {
 		name          = "Basic Tree",
 		icon          = "🌱",
 		cost          = 0,
+		seedCost      = nil,           -- free starter, no seed needed
 		resourceType  = "Wood",
 		yieldPerCycle = 1,
 		cycleTime     = 3,
@@ -21,23 +26,23 @@ TreeConfig.Trees = {
 		description   = "A simple sapling. Produces wood slowly.",
 		withersAfter  = 120,
 		diesAfter     = 240,
-		-- 3D appearance
 		trunkColor    = { 139, 90, 43 },
 		leafColor     = { 34, 139, 34 },
 		trunkHeight   = 5,
 		canopySize    = 6,
-		resourceColor = { 194, 178, 128 },  -- wood color for floating text
+		resourceColor = { 194, 178, 128 },
 	},
 	OakTree = {
 		id            = "OakTree",
 		name          = "Oak Tree",
 		icon          = "🌳",
-		cost          = 150,
+		cost          = 100,
+		seedCost      = { Wood = 200 },
 		resourceType  = "Wood",
 		yieldPerCycle = 3,
 		cycleTime     = 4,
 		unlockTier    = 1,
-		description   = "A sturdy oak. Produces wood faster.",
+		description   = "Sturdy oak. Seed: 200 Wood + 100 coins.",
 		withersAfter  = 140,
 		diesAfter     = 280,
 		trunkColor    = { 101, 67, 33 },
@@ -50,12 +55,13 @@ TreeConfig.Trees = {
 		id            = "AppleTree",
 		name          = "Apple Tree",
 		icon          = "🍎",
-		cost          = 500,
+		cost          = 300,
+		seedCost      = { Wood = 500 },
 		resourceType  = "Apples",
 		yieldPerCycle = 2,
 		cycleTime     = 5,
 		unlockTier    = 2,
-		description   = "Sweet apples! Worth more than wood.",
+		description   = "Sweet apples! Seed: 500 Wood + 300 coins.",
 		withersAfter  = 110,
 		diesAfter     = 220,
 		trunkColor    = { 120, 80, 40 },
@@ -68,12 +74,13 @@ TreeConfig.Trees = {
 		id            = "RubyTree",
 		name          = "Ruby Tree",
 		icon          = "💎",
-		cost          = 1500,
+		cost          = 800,
+		seedCost      = { Wood = 1000, Apples = 200 },
 		resourceType  = "Rubies",
 		yieldPerCycle = 1,
 		cycleTime     = 8,
 		unlockTier    = 3,
-		description   = "A mystical tree that crystallises rubies!",
+		description   = "Crystallises rubies! Seed: 1000 Wood + 200 Apples.",
 		withersAfter  = 90,
 		diesAfter     = 180,
 		trunkColor    = { 80, 40, 50 },
@@ -86,12 +93,13 @@ TreeConfig.Trees = {
 		id            = "OpalTree",
 		name          = "Opal Tree",
 		icon          = "🔮",
-		cost          = 2000,
+		cost          = 1200,
+		seedCost      = { Wood = 1500, Apples = 300 },
 		resourceType  = "Opals",
 		yieldPerCycle = 1,
 		cycleTime     = 10,
 		unlockTier    = 3,
-		description   = "Shimmering opals bloom on every branch.",
+		description   = "Shimmering opals! Seed: 1500 Wood + 300 Apples.",
 		withersAfter  = 80,
 		diesAfter     = 160,
 		trunkColor    = { 100, 80, 120 },
@@ -104,12 +112,13 @@ TreeConfig.Trees = {
 		id            = "EmeraldTree",
 		name          = "Emerald Tree",
 		icon          = "💚",
-		cost          = 3500,
+		cost          = 2000,
+		seedCost      = { Wood = 2000, Rubies = 100, Opals = 50 },
 		resourceType  = "Emeralds",
 		yieldPerCycle = 1,
 		cycleTime     = 12,
 		unlockTier    = 4,
-		description   = "Deep-green emeralds of the finest quality.",
+		description   = "Finest emeralds! Seed: 2000 Wood + gems.",
 		withersAfter  = 70,
 		diesAfter     = 140,
 		trunkColor    = { 40, 80, 60 },
@@ -122,12 +131,13 @@ TreeConfig.Trees = {
 		id            = "DiamondTree",
 		name          = "Diamond Tree",
 		icon          = "💎",
-		cost          = 6000,
+		cost          = 5000,
+		seedCost      = { Wood = 2000, Emeralds = 80, Rubies = 150, Opals = 100 },
 		resourceType  = "Diamonds",
 		yieldPerCycle = 1,
 		cycleTime     = 15,
 		unlockTier    = 5,
-		description   = "The rarest tree. Diamonds are forever!",
+		description   = "Diamonds forever! Massive seed investment.",
 		withersAfter  = 60,
 		diesAfter     = 120,
 		trunkColor    = { 120, 140, 160 },
@@ -162,25 +172,28 @@ TreeConfig.ResourceOrder = { "Wood", "Apples", "Rubies", "Opals", "Emeralds", "D
 -- Progression Tiers
 --------------------------------------------------------------------------------
 TreeConfig.ProgressionTiers = {
-	[0] = { name = "Beginner",       coinsRequired = 0,      unlocksText = "Basic Tree",                slotsGranted = 3  },
-	[1] = { name = "Apprentice",     coinsRequired = 300,    unlocksText = "Oak Tree",                  slotsGranted = 4  },
-	[2] = { name = "Farmer",         coinsRequired = 1000,   unlocksText = "Apple Tree",                slotsGranted = 5  },
-	[3] = { name = "Gem Collector",  coinsRequired = 3000,   unlocksText = "Ruby Tree & Opal Tree",     slotsGranted = 7  },
-	[4] = { name = "Jeweler",        coinsRequired = 8000,   unlocksText = "Emerald Tree",              slotsGranted = 9  },
-	[5] = { name = "Tycoon",         coinsRequired = 20000,  unlocksText = "Diamond Tree",              slotsGranted = 12 },
+	[0] = { name = "Beginner",       coinsRequired = 0,      unlocksText = "Basic Tree",            slotsGranted = 3  },
+	[1] = { name = "Apprentice",     coinsRequired = 200,    unlocksText = "Oak Tree seed",         slotsGranted = 4  },
+	[2] = { name = "Farmer",         coinsRequired = 800,    unlocksText = "Apple Tree seed",       slotsGranted = 5  },
+	[3] = { name = "Gem Collector",  coinsRequired = 2500,   unlocksText = "Ruby & Opal seeds",     slotsGranted = 7  },
+	[4] = { name = "Jeweler",        coinsRequired = 6000,   unlocksText = "Emerald Tree seed",     slotsGranted = 9  },
+	[5] = { name = "Tycoon",         coinsRequired = 15000,  unlocksText = "Diamond Tree seed",     slotsGranted = 12 },
 }
 
 TreeConfig.MaxTier = 5
 
 --------------------------------------------------------------------------------
--- Economics – market config
+-- Economics – market config  (supply/demand, taxes, boom/crash)
 --------------------------------------------------------------------------------
 TreeConfig.MarketConfig = {
-	minPriceMultiplier  = 0.4,
-	maxPriceMultiplier  = 1.5,
-	recoveryRate        = 0.002,
-	dropPerSale         = 0.03,
+	minPriceMultiplier  = 0.25,     -- crash floor: 25%
+	maxPriceMultiplier  = 2.0,      -- boom ceiling: 200%
+	recoveryRate        = 0.001,    -- slow natural recovery toward 1.0
+	dropPerSale         = 0.025,    -- each unit sold pushes price down
 	updateInterval      = 5,
+	taxRate             = 0.05,     -- 5% tax on all sales (coin sink)
+	boomChance          = 0.008,    -- per-tick chance of random boom
+	boomMultiplier      = 1.4,      -- boom pushes price up
 }
 
 --------------------------------------------------------------------------------
@@ -196,25 +209,41 @@ TreeConfig.GridSpacing = 14                      -- studs between tree slots
 TreeConfig.GridColumns = 4                       -- slots per row
 
 --------------------------------------------------------------------------------
--- Feedback messages
+-- Feedback messages  (rich feedback & consequences)
 --------------------------------------------------------------------------------
 TreeConfig.FeedbackMessages = {
-	treePlanted     = "New %s planted!",
-	treeWithering   = "Your %s is withering! Water it!",
-	treeDied        = "Your %s has died from neglect!",
-	treeWatered     = "%s watered!",
-	tierUnlocked    = "Tier %d unlocked: %s!",
-	marketCrash     = "%s price crashed! Oversupply!",
-	marketBoom      = "%s price is booming!",
-	notEnoughCoins  = "Not enough coins!",
-	notUnlocked     = "Unlock tier %d first!",
-	slotsFull       = "All tree slots are full!",
-	soldResources   = "Sold %d %s for %d coins!",
-	noResources     = "No %s to sell!",
-	alreadyWatered  = "This tree was recently watered.",
-	revived         = "%s revived!",
-	cosmeticEquipped = "%s equipped!",
-	cosmeticUnlocked = "New cosmetic unlocked: %s!",
+	-- Planting & seeds
+	treePlanted       = "🌱 New %s planted!",
+	seedPurchased     = "🌰 Seed for %s acquired! Planting...",
+	notEnoughSeeds    = "❌ Not enough resources for this seed! Need: %s",
+	
+	-- Watering & consequences
+	treeWatered       = "💧 %s watered!",
+	alreadyWatered    = "This tree was recently watered.",
+	treeWithering     = "⚠ Your %s is WITHERING! Water it NOW!",
+	treeDied          = "💀 Your %s has DIED from neglect!",
+	revived           = "✅ %s revived!",
+	
+	-- Consequence warnings
+	deathPenalty      = "A dead tree wastes a slot. Revive (50%% cost) or lose it!",
+	witherWarning     = "Withered trees produce NOTHING until watered!",
+	oversellWarning   = "📉 Selling too much at once crashes the price!",
+	
+	-- Tiers
+	tierUnlocked      = "🎉 Tier %d unlocked: %s!",
+	notUnlocked       = "🔒 Unlock tier %d first!",
+	
+	-- Money & market
+	notEnoughCoins    = "💰 Not enough coins!",
+	soldResources     = "💰 Sold %d %s for %d coins (tax: %d)!",
+	noResources       = "No %s to sell!",
+	slotsFull         = "All tree slots are full!",
+	marketCrash       = "📉 %s price CRASHED! Oversupply!",
+	marketBoom        = "📈 %s is BOOMING! Sell now for big profit!",
+	
+	-- Cosmetics
+	cosmeticEquipped  = "%s equipped!",
+	cosmeticUnlocked  = "New cosmetic unlocked: %s!",
 }
 
 --------------------------------------------------------------------------------
